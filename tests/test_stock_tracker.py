@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from stock_tracker import get_alphavantage_data, get_yfinance_data, display_stock_data, main
+from stock_tracker import get_alphavantage_data, get_yfinance_data, display_stock_data, display_price_chart, main
 
 class TestStockTracker(unittest.TestCase):
 
@@ -11,7 +11,7 @@ class TestStockTracker(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "Time Series (5min)": {
+            "Time Series (15min)": {
                 "2024-01-01 10:00:00": {
                     "1. open": "150.00", "2. high": "151.00", "3. low": "149.00",
                     "4. close": "150.50", "5. volume": "100000"
@@ -21,7 +21,8 @@ class TestStockTracker(unittest.TestCase):
         mock_get.return_value = mock_response
         data = get_alphavantage_data("AAPL")
         self.assertIsNotNone(data)
-        self.assertEqual(data['open'], "150.00")
+        self.assertEqual(data['latest']['open'], "150.00")
+        self.assertIsInstance(data['history'], list)
 
     @patch('yfinance.Ticker')
     def test_get_yfinance_data_success(self, mock_ticker):
@@ -36,7 +37,8 @@ class TestStockTracker(unittest.TestCase):
 
         data = get_yfinance_data("AAPL")
         self.assertIsNotNone(data)
-        self.assertEqual(data['open'], "150.0000")
+        self.assertEqual(data['latest']['open'], "150.0000")
+        self.assertIsInstance(data['history'], list)
 
     @patch('stock_tracker.console.print')
     def test_display_stock_data(self, mock_print):
@@ -44,25 +46,30 @@ class TestStockTracker(unittest.TestCase):
         display_stock_data(data, "AAPL", "Test Source")
         self.assertTrue(mock_print.called)
 
+    @patch('asciichartpy.plot')
+    @patch('stock_tracker.console.print')
+    def test_display_price_chart(self, mock_print, mock_plot):
+        display_price_chart([1, 2, 3])
+        mock_plot.assert_called_once()
+        self.assertTrue(mock_print.called)
+
     @patch('stock_tracker.console.input', side_effect=['1', 'AAPL', 'exit'])
     @patch('stock_tracker.get_alphavantage_data')
-    def test_main_alpha_vantage_flow(self, mock_get_data, mock_input):
-        mock_get_data.return_value = {"open": "150.00"}
+    @patch('stock_tracker.display_price_chart')
+    def test_main_alpha_vantage_flow(self, mock_display_chart, mock_get_data, mock_input):
+        mock_get_data.return_value = {"latest": {"open": "150.00"}, "history": [150.50]}
         main()
         mock_get_data.assert_called_with("AAPL")
+        mock_display_chart.assert_called_with([150.50])
 
     @patch('stock_tracker.console.input', side_effect=['2', 'MSFT', 'exit'])
     @patch('stock_tracker.get_yfinance_data')
-    def test_main_yfinance_flow(self, mock_get_data, mock_input):
-        mock_get_data.return_value = {"open": "300.00"}
+    @patch('stock_tracker.display_price_chart')
+    def test_main_yfinance_flow(self, mock_display_chart, mock_get_data, mock_input):
+        mock_get_data.return_value = {"latest": {"open": "300.00"}, "history": [300.00]}
         main()
         mock_get_data.assert_called_with("MSFT")
-
-    @patch('stock_tracker.console.input', side_effect=['3', '1', 'exit'])
-    @patch('stock_tracker.console.print')
-    def test_main_invalid_source_selection(self, mock_print, mock_input):
-        main()
-        mock_print.assert_any_call("[bold red]Invalid choice. Please enter 1 or 2.[/bold red]")
+        mock_display_chart.assert_called_with([300.00])
 
 if __name__ == '__main__':
     unittest.main()

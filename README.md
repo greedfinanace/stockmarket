@@ -1,11 +1,12 @@
 # Stock Tracker
 
-A simple, yet powerful, stock tracker that runs directly in your terminal. This application fetches real-time stock data from multiple sources and displays it in a clean, easy-to-read format.
+A simple, yet powerful, stock tracker that runs directly in your terminal. This application fetches real-time stock data from multiple sources and displays it in a clean, easy-to-read format, complete with a recent price trend chart.
 
 ## Features
 
 - **Multiple Data Sources:** Choose between Alpha Vantage and Yahoo Finance (`yfinance`) for your stock data.
 - **Real-Time Data:** Get the latest stock information, including open, high, low, close, and volume.
+- **ASCII Price Chart:** View a beautiful ASCII chart of the stock's recent price trend.
 - **Interactive CLI:** An easy-to-use command-line interface for entering stock symbols.
 - **Beautiful Output:** Clean, formatted table output using the `rich` library.
 
@@ -58,4 +59,4 @@ To run the application, execute the `stock_tracker.py` script:
 python stock_tracker.py
 ```
 
-You will first be prompted to select your data source (Alpha Vantage or Yahoo Finance). After selecting a source, you can enter any stock symbol (e.g., `AAPL`, `MSFT`) to get the latest data.
+You will first be prompted to select your data source (Alpha Vantage or Yahoo Finance). After selecting a source, you can enter any stock symbol (e.g., `AAPL`, `MSFT`) to get the latest data and a price chart.

@@ -4,7 +4,7 @@ import yfinance as yf
 from rich.console import Console
 from rich.table import Table
 from dotenv import load_dotenv
-from datetime import datetime
+import asciichartpy
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,13 +18,13 @@ console = Console()
 def get_alphavantage_data(symbol):
     """
     Fetches stock data for a given symbol from the Alpha Vantage API.
-    Returns a standardized dictionary.
+    Returns a dictionary containing the latest data and historical close prices.
     """
     if not API_KEY:
         console.print("[bold red]Error: ALPHA_VANTAGE_API_KEY not found in .env file.[/bold red]")
         return None
 
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval=5min&apikey={API_KEY}"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval=15min&outputsize=compact&apikey={API_KEY}"
 
     try:
         response = requests.get(url, timeout=10)
@@ -35,21 +35,29 @@ def get_alphavantage_data(symbol):
             console.print(f"[bold red]API Error: {data['Error Message']}[/bold red]")
             return None
 
-        time_series = data.get("Time Series (5min)")
+        time_series = data.get("Time Series (15min)")
         if not time_series:
             console.print(f"[bold yellow]No time series data found for {symbol.upper()}[/bold yellow]")
             return None
 
-        latest_timestamp = list(time_series.keys())[0]
+        # Sort timestamps and get the latest
+        sorted_timestamps = sorted(time_series.keys(), reverse=True)
+        latest_timestamp = sorted_timestamps[0]
         latest_data = time_series[latest_timestamp]
 
+        # Get historical data for the chart (reversed to be in chronological order)
+        historical_closes = [float(time_series[ts]['4. close']) for ts in reversed(sorted_timestamps)]
+
         return {
-            "timestamp": latest_timestamp,
-            "open": latest_data.get("1. open"),
-            "high": latest_data.get("2. high"),
-            "low": latest_data.get("3. low"),
-            "close": latest_data.get("4. close"),
-            "volume": latest_data.get("5. volume")
+            "latest": {
+                "timestamp": latest_timestamp,
+                "open": latest_data.get("1. open"),
+                "high": latest_data.get("2. high"),
+                "low": latest_data.get("3. low"),
+                "close": latest_data.get("4. close"),
+                "volume": latest_data.get("5. volume")
+            },
+            "history": historical_closes
         }
 
     except requests.exceptions.RequestException as e:
@@ -62,25 +70,28 @@ def get_alphavantage_data(symbol):
 def get_yfinance_data(symbol):
     """
     Fetches stock data for a given symbol from Yahoo Finance.
-    Returns a standardized dictionary.
+    Returns a dictionary containing the latest data and historical close prices.
     """
     try:
         ticker = yf.Ticker(symbol)
-        # Use history to get the latest available data
-        hist = ticker.history(period="1d", interval="5m")
+        hist = ticker.history(period="1d", interval="15m")
         if hist.empty:
             console.print(f"[bold yellow]No data found for symbol: {symbol.upper()} using yfinance.[/bold yellow]")
             return None
 
         latest_data = hist.iloc[-1]
+        historical_closes = hist['Close'].tolist()
 
         return {
-            "timestamp": latest_data.name.strftime('%Y-%m-%d %H:%M:%S'),
-            "open": f"{latest_data['Open']:.4f}",
-            "high": f"{latest_data['High']:.4f}",
-            "low": f"{latest_data['Low']:.4f}",
-            "close": f"{latest_data['Close']:.4f}",
-            "volume": str(latest_data['Volume'])
+            "latest": {
+                "timestamp": latest_data.name.strftime('%Y-%m-%d %H:%M:%S'),
+                "open": f"{latest_data['Open']:.4f}",
+                "high": f"{latest_data['High']:.4f}",
+                "low": f"{latest_data['Low']:.4f}",
+                "close": f"{latest_data['Close']:.4f}",
+                "volume": str(latest_data['Volume'])
+            },
+            "history": historical_closes
         }
     except Exception as e:
         console.print(f"[bold red]Error fetching data from yfinance for {symbol.upper()}: {e}[/bold red]")
@@ -106,6 +117,23 @@ def display_stock_data(data, symbol, source):
 
     console.print(table)
 
+def display_price_chart(historical_data):
+    """
+    Displays a price chart using asciichartpy.
+    """
+    if not historical_data:
+        return
+
+    # Configuration for the chart
+    config = {
+        'height': 15,
+        'format': '{:8.2f} '
+    }
+
+    chart = asciichartpy.plot(historical_data, config)
+    console.print("\n[bold green]Recent Price Trend:[/bold green]")
+    console.print(chart)
+
 def main():
     """
     Main function to run the stock tracker application.
@@ -130,9 +158,10 @@ def main():
             console.print("[bold red]Please enter a stock symbol.[/bold red]")
             continue
 
-        stock_data = get_data_func(symbol)
-        if stock_data:
-            display_stock_data(stock_data, symbol, source)
+        data_package = get_data_func(symbol)
+        if data_package:
+            display_stock_data(data_package["latest"], symbol, source)
+            display_price_chart(data_package["history"])
 
 if __name__ == "__main__":
     main()
